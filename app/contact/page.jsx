@@ -1,12 +1,18 @@
+'use client';
 
 export default function ContactPage() {
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    alert('Thanks! We will reach out soon.');
+  };
+
   return (
     <section className="max-w-7xl mx-auto px-4 py-10">
       <h1 className="text-3xl font-bold">Contact Us</h1>
       <p className="text-gray-600">Have a question or want a management quote? Send a message and we’ll respond quickly.</p>
 
       <div className="grid md:grid-cols-2 gap-8 mt-8">
-        <form className="bg-white rounded-xl shadow p-6 space-y-4" onSubmit={(e)=>{e.preventDefault(); alert('Thanks! We will reach out soon.');}}>
+        <form className="bg-white rounded-xl shadow p-6 space-y-4" onSubmit={handleSubmit}>
           <div>
             <label className="text-sm font-medium">Name</label>
             <input className="mt-1 w-full border rounded-lg p-2" placeholder="Your name" />
@@ -21,7 +27,7 @@ export default function ContactPage() {
           </div>
           <div>
             <label className="text-sm font-medium">Message</label>
-            <textarea className="mt-1 w-full border rounded-lg p-2 h-28" placeholder="Tell us about your property or question"></textarea>
+            <textarea className="mt-1 w-full border rounded-lg p-2 h-28" placeholder="Tell us about your property or question" />
           </div>
           <div className="flex items-center gap-3">
             <button className="bg-blue-700 text-white px-5 py-3 rounded-lg font-semibold">Send</button>
