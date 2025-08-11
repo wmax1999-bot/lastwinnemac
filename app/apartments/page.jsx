@@ -1,4 +1,3 @@
-
 'use client';
 import { useState } from 'react';
 
@@ -63,4 +62,36 @@ export default function ApartmentsPage() {
 
       <div className="mt-8 grid gap-6 md:grid-cols-3">
         {filtered.map(u => (
-          <div key={u.id} className="bg-white rounded-xl shadow hover:shadow-
+          <div key={u.id} className="bg-white rounded-xl shadow hover:shadow-lg overflow-hidden">
+            <img src={u.img} alt={u.addr} className="h-48 w-full object-cover" />
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-lg">{u.addr}</h3>
+                <span className="font-semibold">${u.rent.toLocaleString()}/mo</span>
+              </div>
+              <p className="text-sm text-gray-600">
+                {u.beds === 0 ? 'Studio' : `${u.beds} Bed`} • {u.baths} Bath • {u.hood}
+              </p>
+              <div className="mt-4 flex gap-3">
+                <a
+                  href="https://winne.twa.rentmanager.com/applynow"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-semibold"
+                >
+                  Apply
+                </a>
+                <a
+                  href="/contact"
+                  className="border border-blue-700 text-blue-700 px-3 py-2 rounded-md text-sm font-semibold"
+                >
+                  Schedule a Tour
+                </a>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
