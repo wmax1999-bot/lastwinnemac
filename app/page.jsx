@@ -23,7 +23,7 @@ export default function Page() {
         </div>
         <div className="relative max-w-7xl mx-auto px-4 py-20 text-center">
           <img
-            src="/winnemac-logo.png"
+            src="/winnemac-logo-transparent.svg"
             alt="Winnemac Properties Logo"
             className="h-16 md:h-20 mx-auto mb-6"
           />
