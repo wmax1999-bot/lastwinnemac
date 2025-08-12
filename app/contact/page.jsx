@@ -5,23 +5,22 @@ export default function ContactPage() {
       <p className="text-gray-600">Have a question or want a management quote? Send a message and we’ll respond quickly.</p>
 
       <div className="grid md:grid-cols-2 gap-8 mt-8">
-        {/* Server-safe form (no event handler) */}
-        <form className="bg-white rounded-xl shadow p-6 space-y-4">
+        <form className="bg-white rounded-xl shadow p-6 space-y-4" action="#" method="post">
           <div>
             <label className="text-sm font-medium">Name</label>
-            <input className="mt-1 w-full border rounded-lg p-2" placeholder="Your name" />
+            <input className="mt-1 w-full border rounded-lg p-2" name="name" placeholder="Your name" />
           </div>
           <div>
             <label className="text-sm font-medium">Email</label>
-            <input type="email" className="mt-1 w-full border rounded-lg p-2" placeholder="you@email.com" />
+            <input type="email" className="mt-1 w-full border rounded-lg p-2" name="email" placeholder="you@email.com" />
           </div>
           <div>
             <label className="text-sm font-medium">Phone</label>
-            <input className="mt-1 w-full border rounded-lg p-2" placeholder="(312)" />
+            <input className="mt-1 w-full border rounded-lg p-2" name="phone" placeholder="(312)" />
           </div>
           <div>
             <label className="text-sm font-medium">Message</label>
-            <textarea className="mt-1 w-full border rounded-lg p-2 h-28" placeholder="Tell us about your property or question"></textarea>
+            <textarea className="mt-1 w-full border rounded-lg p-2 h-28" name="message" placeholder="Tell us about your property or question" />
           </div>
           <div className="flex items-center gap-3">
             <button type="submit" className="bg-blue-700 text-white px-5 py-3 rounded-lg font-semibold">Send</button>
