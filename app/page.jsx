@@ -11,7 +11,7 @@ export default function Page() {
       <section className="relative bg-gray-100">
         <div className="absolute inset-0">
           <video
-            src="/drone-chicago.mp4.mp4"
+            src="/chicago_drone_shot.mp4.mp4"
             autoPlay
             loop
             muted
