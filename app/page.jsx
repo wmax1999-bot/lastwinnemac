@@ -1,6 +1,6 @@
 export default function Page() {
   const featured = [
-    { addr: "1154 W Lunt Ave", specs: "1 Bed • 1 Bath • $1,295/mo", img: "/stock-chicago-apt-1.jpg" },
+    { addr: "1154 W Lunt Ave", specs: "1 Bed • 1 Bath • $1,295/mo", img: "/Lunt-photo-front.jpg" },
     { addr: "1340 W Winnemac Ave", specs: "1 Bed • 1 Bath • $1,425/mo", img: "/stock-chicago-apt-2.jpg" },
     { addr: "1535 W Fargo Ave", specs: "Studio • 1 Bath • $1,095/mo", img: "/stock-chicago-apt-3.jpg" },
   ];
