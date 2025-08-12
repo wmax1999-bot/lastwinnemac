@@ -2,7 +2,7 @@
 import { useState } from 'react';
 
 const UNITS = [
-  { id: 1, addr: '4818 N Damen Ave #2F', beds: 2, baths: 1, rent: 1750, hood: 'Lincoln Square', img: '/stock-chicago-apt-1.jpg' },
+  { id: 1, addr: '4818 N Damen Ave #2F', beds: 2, baths: 1, rent: 1750, hood: 'Lincoln Square', img: '/Lunt-photo-front.jpg' },
   { id: 2, addr: '1340 W Winnemac Ave #1R', beds: 1, baths: 1, rent: 1425, hood: 'Uptown/Andersonville', img: '/stock-chicago-apt-2.jpg' },
   { id: 3, addr: '1535 W Fargo Ave #3E', beds: 0, baths: 1, rent: 1095, hood: 'Rogers Park', img: '/stock-chicago-apt-3.jpg' },
 ];
