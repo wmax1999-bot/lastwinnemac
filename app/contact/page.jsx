@@ -5,7 +5,7 @@ export default function ContactPage() {
       <p className="text-gray-600">Have a question or want a management quote? Send a message and we’ll respond quickly.</p>
 
       <div className="grid md:grid-cols-2 gap-8 mt-8">
-        {/* No onSubmit here (server-safe) */}
+        {/* Server-safe form (no event handler) */}
         <form className="bg-white rounded-xl shadow p-6 space-y-4">
           <div>
             <label className="text-sm font-medium">Name</label>
