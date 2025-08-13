@@ -3,25 +3,34 @@
 import { useEffect, useMemo, useState } from 'react';
 import buildings from '../data/buildings';
 
+// --- Address normalization helpers ---
 const SYN = [
   [/ street\b/gi, ' st'], [/ avenue\b/gi, ' ave'], [/ boulevard\b/gi, ' blvd'],
   [/ place\b/gi, ' pl'],  [/ drive\b/gi, ' dr'],  [/ road\b/gi, ' rd']
 ];
-const norm = (s='') => { let o = s.toLowerCase().replace(/\./g,'').replace(/\s+/g,' ').trim(); SYN.forEach(([re,rep])=>o=o.replace(re,rep)); return o; };
-const keyFor = (street, city) => norm(`${street}, ${city}`);
+const normBasic = (s='') => s.toLowerCase().replace(/\./g,'').replace(/\s+/g,' ').trim();
+const applySyn = (s='') => SYN.reduce((acc,[re,rep]) => acc.replace(re,rep), s);
+
+// remove unit indicators: "#2F", "apt 3", "unit 4", etc.
+const stripUnit = (s='') => normBasic(s)
+  .replace(/[,]*\s*(#|apt|apartment|unit)\s*[a-z0-9\-]+$/i, '')
+  .replace(/\s+#\s*[a-z0-9\-]+$/i, '');
+
+// city might be "Chicago, IL 60626" → "chicago"
+const stripCity = (s='') => normBasic(s).split(',')[0];
+
+// final normalized key
+const keyFor = (street='', city='') => applySyn(`${stripUnit(street)}, ${stripCity(city)}`);
 
 export default function ApartmentsPage() {
-  // filters (kept from your current UI)
   const [hood, setHood] = useState('');
   const [beds, setBeds] = useState('');
   const [price, setPrice] = useState('');
 
-  // data state
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [grouped, setGrouped] = useState({});  // { key: { building, units: [] } }
 
-  // fetch ShowMojo → group by building
   useEffect(() => {
     (async () => {
       try {
@@ -30,19 +39,35 @@ export default function ApartmentsPage() {
         if (!res.ok) throw new Error('ShowMojo proxy failed');
         const { units } = await res.json();
 
-        // seed map with all buildings
+        // Seed map from our building list
         const map = {};
         buildings.forEach(b => {
           const k = keyFor(b.address.street, b.address.city);
           map[k] = { building: b, units: [] };
         });
 
-        // place available units under the correct building
+        // Place available units under matching building
         (units || []).forEach(u => {
           const available = (u.status || 'available') === 'available';
           if (!available) return;
-          const k = u.address?.key || keyFor(u.address?.street || '', u.address?.city || '');
-          if (k && map[k]) map[k].units.push(u);
+
+          const uStreet = u?.address?.street || u?.street || u?.address_line1 || u?.address || '';
+          const uCity   = u?.address?.city   || u?.city   || '';
+
+          const hardKey = keyFor(uStreet, uCity);
+          if (map[hardKey]) { map[hardKey].units.push(u); return; }
+
+          // Fallback: same city and unit street starts with building street (normalized)
+          const uStreetBase = applySyn(stripUnit(uStreet));
+          const uCityBase   = stripCity(uCity);
+
+          Object.entries(map).forEach(([bk, bucket]) => {
+            const bStreetBase = applySyn(stripUnit(bucket.building.address.street));
+            const bCityBase   = stripCity(bucket.building.address.city);
+            if (uCityBase === bCityBase && uStreetBase.startsWith(bStreetBase)) {
+              bucket.units.push(u);
+            }
+          });
         });
 
         setGrouped(map);
@@ -55,7 +80,7 @@ export default function ApartmentsPage() {
     })();
   }, []);
 
-  // apply your filters (by hood/beds/price) to each building's units
+  // Filters
   const filteredSections = useMemo(() => {
     const priceOk = (rent) => {
       if (!price) return true;
@@ -71,17 +96,10 @@ export default function ApartmentsPage() {
     };
 
     return Object.values(grouped).map(({ building, units }) => {
-      // per-building hood filter (hide section if user picked a different hood)
       if (hood && building.hood !== hood) return { building, units: [] };
-
-      // unit-level filters
-      const u = units.filter(u =>
-        bedsOk(u.beds) &&
-        priceOk(u.rent)
-      );
-
+      const u = units.filter(u => bedsOk(u.beds) && priceOk(u.rent));
       return { building, units: u };
-    }).filter(section => section.units.length > 0 || !hood); // if hood picked, hide empty sections
+    }).filter(section => section.units.length > 0 || !hood);
   }, [grouped, hood, beds, price]);
 
   return (
@@ -101,14 +119,12 @@ export default function ApartmentsPage() {
         </a>
       </div>
 
-      {/* filters — same UI you already had */}
+      {/* Filters */}
       <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
         <select className="border rounded-lg p-2" value={hood} onChange={(e) => setHood(e.target.value)}>
           <option value="">Neighborhood</option>
-          {/* build options from buildings list to avoid typos */}
           {[...new Set(buildings.map(b => b.hood))].map(h => <option key={h} value={h}>{h}</option>)}
         </select>
-
         <select className="border rounded-lg p-2" value={beds} onChange={(e) => setBeds(e.target.value)}>
           <option value="">Beds</option>
           <option value="0">Studio</option>
@@ -116,37 +132,33 @@ export default function ApartmentsPage() {
           <option value="2">2</option>
           <option value="3">3+</option>
         </select>
-
         <select className="border rounded-lg p-2" value={price} onChange={(e) => setPrice(e.target.value)}>
           <option value="">Price</option>
           <option value="1500-">≤ $1,500</option>
           <option value="1501-1800">$1,501–$1,800</option>
           <option value="1801+">$1,801+</option>
         </select>
-
         <button onClick={() => { setHood(''); setBeds(''); setPrice(''); }} className="border rounded-lg px-3 py-2 hover:bg-gray-50">
           Reset
         </button>
       </div>
 
-      {/* data states */}
+      {/* Data states */}
       {loading && <div className="mt-6 border rounded-lg p-4 bg-white">Loading listings…</div>}
       {err && <div className="mt-6 border rounded-lg p-4 bg-white text-red-700">Error: {err}</div>}
 
-      {/* grouped output: one section per building, units below */}
+      {/* Output */}
       {!loading && !err && (
         <div className="mt-8 space-y-8">
           {filteredSections.length === 0 && (
             <div className="border rounded-lg p-4 bg-white text-gray-600">No results match your filters.</div>
           )}
-
           {filteredSections.map(({ building, units }) => (
             <section key={building.id} className="bg-white rounded-xl shadow overflow-hidden">
               <div className="p-4 border-b">
                 <h2 className="text-xl font-semibold">{building.name}</h2>
                 <div className="text-gray-600">{building.hood} • {building.address.street}, {building.address.city}</div>
               </div>
-
               <div className="p-4">
                 {units.length ? (
                   <div className="grid gap-6 md:grid-cols-3">
@@ -166,21 +178,13 @@ export default function ApartmentsPage() {
                             </p>
                             <div className="mt-4 flex gap-3">
                               {u.scheduleUrl && (
-                                <a
-                                  href={u.scheduleUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-semibold hover:bg-blue-800"
-                                >
+                                <a href={u.scheduleUrl} target="_blank" rel="noreferrer"
+                                   className="bg-blue-700 text-white px-3 py-2 rounded-md text-sm font-semibold hover:bg-blue-800">
                                   Schedule a Tour
                                 </a>
                               )}
-                              <a
-                                href="https://winne.twa.rentmanager.com/applynow"
-                                target="_blank"
-                                rel="noreferrer"
-                                className="border border-blue-700 text-blue-700 px-3 py-2 rounded-md text-sm font-semibold"
-                              >
+                              <a href="https://winne.twa.rentmanager.com/applynow" target="_blank" rel="noreferrer"
+                                 className="border border-blue-700 text-blue-700 px-3 py-2 rounded-md text-sm font-semibold">
                                 Apply
                               </a>
                             </div>
