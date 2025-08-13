@@ -7,8 +7,6 @@ const buildings = [
   { id:"b_damen",    slug:"4818-n-damen",            name:"4818 N Damen",              hood:"Lincoln Square",       address:{ street:"4818 N Damen Ave",       city:"Chicago" } },
   { id:"b_newport",  slug:"1200-1204-w-newport",     name:"1200–1204 W Newport",       hood:"Lakeview",             address:{ street:"1200 W Newport Ave",     city:"Chicago" } },
   { id:"b_racine",   slug:"3436-3442-n-racine",      name:"3436–3442 N Racine",        hood:"Lakeview",             address:{ street:"3436 N Racine Ave",      city:"Chicago" } },
-
-  // --- new additions ---
   { id:"b_2344_w_24th_pl",  slug:"2344-w-24th-pl",   name:"2344 W 24th Pl",            hood:"Pilsen",               address:{ street:"2344 W 24th Pl",         city:"Chicago" } },
   { id:"b_2346_w_24th_pl",  slug:"2346-w-24th-pl",   name:"2346 W 24th Pl",            hood:"Pilsen",               address:{ street:"2346 W 24th Pl",         city:"Chicago" } },
   { id:"b_7010_n_ashland",  slug:"7010-n-ashland-ave",name:"7010 N Ashland",           hood:"Rogers Park",          address:{ street:"7010 N Ashland Ave",     city:"Chicago" } },
