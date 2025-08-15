@@ -1,7 +1,7 @@
 // app/api/showmojo/route.js
 import { NextResponse } from "next/server";
 
-// Disable caching (important on Vercel)
+// Ensure Vercel doesn't cache this route
 export const dynamic = "force-dynamic";
 
 function toNumberOrNull(x) {
@@ -45,7 +45,8 @@ function normalizeUnit(raw = {}) {
     photos,
     unitNumber:
       raw.unit ?? raw.unit_number ?? raw.unitNumber ?? raw.apartment ?? null,
-    scheduleUrl: raw.schedule_url ?? raw.scheduleUrl ?? raw.link ?? raw.url ?? null,
+    scheduleUrl:
+      raw.schedule_url ?? raw.scheduleUrl ?? raw.link ?? raw.url ?? null,
   };
 }
 
@@ -56,6 +57,7 @@ export async function GET(req) {
 
     const API_KEY = process.env.SHOWMOJO_API_KEY;
     const AUTH_STYLE = (process.env.SHOWMOJO_AUTH_STYLE || "bearer").toLowerCase();
+
     if (!API_KEY) {
       return NextResponse.json(
         { error: "Missing SHOWMOJO_API_KEY" },
@@ -63,14 +65,20 @@ export async function GET(req) {
       );
     }
 
-    // Choose auth style: "bearer" (default) or "query"
+    // Build upstream request
     let endpoint = "https://api.showmojo.com/v3/listings?status=active";
-    let fetchOpts = { cache: "no-store", headers: { Accept: "application/json" } };
+    const fetchOpts = {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    };
 
     if (AUTH_STYLE === "bearer") {
       fetchOpts.headers.Authorization = `Bearer ${API_KEY}`;
     } else {
-      endpoint = `https://api.showmojo.com/listings?status=active&api_key=${encodeURIComponent(API_KEY)}`;
+      // Some accounts use query-key auth
+      endpoint = `https://api.showmojo.com/listings?status=active&api_key=${encodeURIComponent(
+        API_KEY
+      )}`;
     }
 
     const resp = await fetch(endpoint, fetchOpts);
@@ -78,4 +86,31 @@ export async function GET(req) {
       const text = await resp.text().catch(() => "");
       return NextResponse.json(
         { error: "ShowMojo upstream error", status: resp.status, body: text },
-        { status: 502
+        { status: 502 }
+      );
+    }
+
+    const data = await resp.json();
+    const rawList = Array.isArray(data)
+      ? data
+      : data?.listings || data?.units || data?.results || [];
+
+    const units = (Array.isArray(rawList) ? rawList : []).map(normalizeUnit);
+
+    if (debug) {
+      const first = (Array.isArray(rawList) && rawList[0]) || {};
+      return NextResponse.json({
+        count: units.length,
+        sample: units.slice(0, 2),
+        upstream_keys: Object.keys(first),
+      });
+    }
+
+    return NextResponse.json({ units });
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Proxy failed", message: err?.message || String(err) },
+      { status: 500 }
+    );
+  }
+}
