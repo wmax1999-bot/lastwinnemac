@@ -1,8 +1,12 @@
 // app/api/showmojo/route.js
 import { NextResponse } from "next/server";
 
-// Ensure Vercel doesn't cache this route
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";              // ensure Node runtime (not Edge)
+export const preferredRegion = "iad1";        // same as your build log region
+
+const TIMEOUT_MS = 8000;
+const RETRIES = 2;
 
 function toNumberOrNull(x) {
   if (x == null) return null;
@@ -13,25 +17,10 @@ function toNumberOrNull(x) {
 
 function normalizeUnit(raw = {}) {
   const addr = raw.address || {};
-  const street =
-    addr.street ||
-    raw.address_line1 ||
-    raw.street ||
-    raw.location?.street ||
-    "";
-  const city =
-    addr.city ||
-    raw.city ||
-    raw.location?.city ||
-    "";
-
-  const rent = toNumberOrNull(
-    raw.rent ?? raw.price ?? raw.monthly_rent ?? raw.prices?.monthly
-  );
-
-  const photos = Array.isArray(raw.photos || raw.images)
-    ? (raw.photos || raw.images)
-    : [];
+  const street = addr.street || raw.address_line1 || raw.street || raw.location?.street || "";
+  const city   = addr.city   || raw.city         || raw.location?.city   || "";
+  const rent   = toNumberOrNull(raw.rent ?? raw.price ?? raw.monthly_rent ?? raw.prices?.monthly);
+  const photos = Array.isArray(raw.photos || raw.images) ? (raw.photos || raw.images) : [];
 
   return {
     id: String(raw.id ?? raw.listing_id ?? raw.slug ?? `${street}`),
@@ -40,77 +29,106 @@ function normalizeUnit(raw = {}) {
     beds: raw.beds ?? raw.bedrooms ?? raw.attributes?.beds ?? null,
     baths: raw.baths ?? raw.bathrooms ?? raw.attributes?.baths ?? null,
     rent,
-    availableDate:
-      raw.available_date ?? raw.availableDate ?? raw.availability ?? null,
+    availableDate: raw.available_date ?? raw.availableDate ?? raw.availability ?? null,
     photos,
-    unitNumber:
-      raw.unit ?? raw.unit_number ?? raw.unitNumber ?? raw.apartment ?? null,
-    scheduleUrl:
-      raw.schedule_url ?? raw.scheduleUrl ?? raw.link ?? raw.url ?? null,
+    unitNumber: raw.unit ?? raw.unit_number ?? raw.unitNumber ?? raw.apartment ?? null,
+    scheduleUrl: raw.schedule_url ?? raw.scheduleUrl ?? raw.link ?? raw.url ?? null,
   };
 }
 
-export async function GET(req) {
+function pickListingsShape(data) {
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.listings)) return data.listings;
+  if (Array.isArray(data?.results))  return data.results;
+  if (Array.isArray(data?.units))    return data.units;
+  if (Array.isArray(data?.data?.listings)) return data.data.listings;
+  return [];
+}
+
+// fetch with timeout + basic retry
+async function fetchWithTimeout(url, opts, timeoutMs) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const url = new URL(req.url);
-    const debug = url.searchParams.get("debug");
-
-    const API_KEY = process.env.SHOWMOJO_API_KEY;
-    const AUTH_STYLE = (process.env.SHOWMOJO_AUTH_STYLE || "bearer").toLowerCase();
-
-    if (!API_KEY) {
-      return NextResponse.json(
-        { error: "Missing SHOWMOJO_API_KEY" },
-        { status: 500 }
-      );
-    }
-
-    // Build upstream request
-    let endpoint = "https://api.showmojo.com/v3/listings?status=active";
-    const fetchOpts = {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    };
-
-    if (AUTH_STYLE === "bearer") {
-      fetchOpts.headers.Authorization = `Bearer ${API_KEY}`;
-    } else {
-      // Some accounts use query-key auth
-      endpoint = `https://api.showmojo.com/listings?status=active&api_key=${encodeURIComponent(
-        API_KEY
-      )}`;
-    }
-
-    const resp = await fetch(endpoint, fetchOpts);
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      return NextResponse.json(
-        { error: "ShowMojo upstream error", status: resp.status, body: text },
-        { status: 502 }
-      );
-    }
-
-    const data = await resp.json();
-    const rawList = Array.isArray(data)
-      ? data
-      : data?.listings || data?.units || data?.results || [];
-
-    const units = (Array.isArray(rawList) ? rawList : []).map(normalizeUnit);
-
-    if (debug) {
-      const first = (Array.isArray(rawList) && rawList[0]) || {};
-      return NextResponse.json({
-        count: units.length,
-        sample: units.slice(0, 2),
-        upstream_keys: Object.keys(first),
-      });
-    }
-
-    return NextResponse.json({ units });
-  } catch (err) {
-    return NextResponse.json(
-      { error: "Proxy failed", message: err?.message || String(err) },
-      { status: 500 }
-    );
+    return await fetch(url, { ...opts, signal: controller.signal });
+  } finally {
+    clearTimeout(t);
   }
+}
+
+async function tryFetch(name, url, headers) {
+  let lastErr;
+  for (let attempt = 0; attempt <= RETRIES; attempt++) {
+    try {
+      const resp = await fetchWithTimeout(url, {
+        headers: { "Accept": "application/json", "User-Agent": "Winnemac/1.0", ...headers },
+        cache: "no-store",
+      }, TIMEOUT_MS);
+      const text = await resp.text();
+      let body = null;
+      try { body = text ? JSON.parse(text) : {}; } catch { body = text; }
+      return { ok: resp.ok, status: resp.status, body, name };
+    } catch (e) {
+      lastErr = e;
+      // brief backoff
+      await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
+    }
+  }
+  return { ok: false, status: "fetch-failed", body: String(lastErr), name };
+}
+
+export async function GET(req) {
+  const q = new URL(req.url).searchParams;
+  const debug = q.get("debug");
+  const API_KEY = process.env.SHOWMOJO_API_KEY;
+
+  if (!API_KEY) {
+    return NextResponse.json({ error: "Missing SHOWMOJO_API_KEY" }, { status: 500 });
+  }
+
+  // Try multiple auth styles/endpoints
+  const attempts = [];
+  const candidates = [
+    {
+      name: "v3-bearer",
+      url:  "https://api.showmojo.com/v3/listings?status=active",
+      headers: { Authorization: `Bearer ${API_KEY}` },
+    },
+    {
+      name: "legacy-query",
+      url:  `https://api.showmojo.com/listings?status=active&api_key=${encodeURIComponent(API_KEY)}`,
+      headers: {},
+    },
+    {
+      name: "v3-query",
+      url:  `https://api.showmojo.com/v3/listings?status=active&api_key=${encodeURIComponent(API_KEY)}`,
+      headers: {},
+    },
+  ];
+
+  for (const c of candidates) {
+    const res = await tryFetch(c.name, c.url, c.headers);
+    attempts.push({ name: res.name, status: res.status, ok: res.ok });
+
+    if (res.ok) {
+      const rawList = pickListingsShape(res.body);
+      const units = (Array.isArray(rawList) ? rawList : []).map(normalizeUnit);
+
+      if (debug) {
+        const first = (Array.isArray(rawList) && rawList[0]) || {};
+        return NextResponse.json({
+          endpoint_used: res.name,
+          count: units.length,
+          upstream_keys: typeof first === "object" ? Object.keys(first) : [],
+          attempts
+        });
+      }
+      return NextResponse.json({ units });
+    }
+  }
+
+  return NextResponse.json(
+    { error: "Proxy failed", attempts },
+    { status: 502 }
+  );
 }
